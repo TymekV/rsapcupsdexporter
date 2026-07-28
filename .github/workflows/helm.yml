@@ -13,6 +13,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  CHART_NAMESPACE: charts
   CHART_PATH: charts/rs-apcupsd-exporter
 
 jobs:
@@ -45,4 +46,4 @@ jobs:
 
       - name: Push Helm chart
         if: github.event_name != 'pull_request'
-        run: helm push dist/*.tgz "oci://${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}"
+        run: helm push dist/*.tgz "oci://${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/${CHART_NAMESPACE}"
