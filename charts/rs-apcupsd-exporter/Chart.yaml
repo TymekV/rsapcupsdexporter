@@ -2,7 +2,7 @@ apiVersion: v2
 name: rs-apcupsd-exporter
 description: APC UPSD Prometheus Exporter
 type: application
-version: 0.2.2
+version: 0.2.3
 appVersion: "0.1.0"
 home: https://github.com/TymekV/rsapcupsdexporter
 sources:

@@ -16,4 +16,5 @@ spec:
   endpoints:
   - port: metrics
     path: /metrics
+    interval: {{ printf "%ds" (int .Values.config.interval) | quote }}
 {{- end }}
