@@ -1,0 +1,47 @@
+name: Helm chart
+
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+  push:
+    branches:
+      - latest
+    paths:
+      - 'charts/**'
+
+env:
+  REGISTRY: ghcr.io
+  CHART_PATH: charts/rs-apcupsd-exporter
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint Helm chart
+        run: helm lint "${CHART_PATH}" --set config.apcupsdHost=lint.invalid
+
+      - name: Package Helm chart
+        run: helm package "${CHART_PATH}" --destination dist
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" |
+            helm registry login "${REGISTRY}" \
+              --username "${{ github.actor }}" \
+              --password-stdin
+
+      - name: Push Helm chart
+        if: github.event_name != 'pull_request'
+        run: helm push dist/*.tgz "oci://${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}"

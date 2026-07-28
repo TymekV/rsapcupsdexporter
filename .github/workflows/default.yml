@@ -1,9 +1,13 @@
 name: default
 on:
   pull_request:
+    paths-ignore:
+      - 'charts/**'
   push:
     branches:
       - latest
+    paths-ignore:
+      - 'charts/**'
 
 env:
   # Use docker.io for Docker Hub if empty
