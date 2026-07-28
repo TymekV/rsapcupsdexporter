@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rs-apcupsd-exporter.fullname" . }}-config
+  labels:
+    {{- include "rs-apcupsd-exporter.labels" . | nindent 4 }}
+data:
+  APCUPSD_HOST: {{ required "config.apcupsdHost is required" .Values.config.apcupsdHost | quote }}
+  APCUPSD_PORT: {{ .Values.config.apcupsdPort | default 3551 | quote }}
+  METRICS_PORT: {{ .Values.config.metricsPort | default 8080 | quote }}
+  INTERVAL: {{ .Values.config.interval | default 10 | quote }}
+  TIMEOUT: {{.Values.config.timeout | default 15 | quote }}
