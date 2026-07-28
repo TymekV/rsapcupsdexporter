@@ -11,9 +11,9 @@ image:
 # -- App configuration
 config:
   # -- Hostname or IP of the apcupsd server
-  acupsdHost: ""
+  apcupsdHost: ""
   # -- Port of the apcupsd NIS
-  acupsdPort: 3551
+  apcupsdPort: 3551
   # -- Port to expose Prometheus metrics on
   metricsPort: 8080
   # -- Polling interval in seconds
