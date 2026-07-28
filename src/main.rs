@@ -1,10 +1,10 @@
 mod apcaccess;
 
 use std::sync::{Arc, Mutex};
-use tokio::time::{interval, Duration};
+use tokio::time::{Duration, interval};
 
 use actix_web::middleware::Compress;
-use actix_web::{web, App, HttpResponse, HttpServer, Result};
+use actix_web::{App, HttpResponse, HttpServer, Result, web};
 use log::{debug, info};
 use prometheus::{Encoder, GaugeVec, IntGaugeVec, Opts, Registry, TextEncoder};
 
@@ -30,7 +30,8 @@ pub async fn metrics_handler(state: web::Data<Arc<Mutex<AppState>>>) -> Result<H
 fn update_metrics(state: &mut AppState) {
     // Update info gauge with labels
     state.info_gauge.reset();
-    state.info_gauge
+    state
+        .info_gauge
         .with_label_values(&[
             &state.stats.get("APC").cloned().unwrap_or_default(),
             &state.stats.get("HOSTNAME").cloned().unwrap_or_default(),
@@ -50,7 +51,19 @@ fn update_metrics(state: &mut AppState) {
 
     for (key, value) in &state.stats {
         // Skip the tag keys that are already in the info metric
-        if matches!(key.as_str(), "APC" | "HOSTNAME" | "UPSNAME" | "VERSION" | "CABLE" | "MODEL" | "UPSMODE" | "DRIVER" | "APCMODEL" | "STATUS") {
+        if matches!(
+            key.as_str(),
+            "APC"
+                | "HOSTNAME"
+                | "UPSNAME"
+                | "VERSION"
+                | "CABLE"
+                | "MODEL"
+                | "UPSMODE"
+                | "DRIVER"
+                | "APCMODEL"
+                | "STATUS"
+        ) {
             continue;
         }
 
@@ -62,7 +75,10 @@ fn update_metrics(state: &mut AppState) {
             let gauge = gauges.entry(metric_name.clone()).or_insert_with(|| {
                 let opts = Opts::new(metric_name.clone(), format!("APC UPS {}", key));
                 let gauge_vec = GaugeVec::new(opts, &[]).unwrap();
-                state.registry.register(Box::new(gauge_vec.clone())).unwrap();
+                state
+                    .registry
+                    .register(Box::new(gauge_vec.clone()))
+                    .unwrap();
                 gauge_vec
             });
 
@@ -73,7 +89,6 @@ fn update_metrics(state: &mut AppState) {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-
     env_logger::init();
     let apcupsd_host = std::env::var("APCUPSD_HOST").unwrap_or_else(|_| "localhost".to_string());
     let apcupsd_port: u16 = std::env::var("APCUPSD_PORT")
@@ -94,7 +109,10 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or(15);
 
     // Initial fetch
-    debug!("Fetching initial APC UPS stats from {}:{}", apcupsd_host, apcupsd_port);
+    debug!(
+        "Fetching initial APC UPS stats from {}:{}",
+        apcupsd_host, apcupsd_port
+    );
     let stats = apcaccess::fetch_stats(&apcupsd_host, apcupsd_port, timeout, true)
         .expect("Failed to fetch initial APC UPS stats");
     debug!("Fetched stats: {:?}", stats);
@@ -107,8 +125,12 @@ async fn main() -> std::io::Result<()> {
     let info_opts = Opts::new("apcupsd_metadata", "APC UPS daemon information");
     let info_gauge = IntGaugeVec::new(
         info_opts,
-        &["apc", "hostname", "upsname", "version", "cable", "model", "upsmode", "driver", "apcmodel", "status"]
-    ).unwrap();
+        &[
+            "apc", "hostname", "upsname", "version", "cable", "model", "upsmode", "driver",
+            "apcmodel", "status",
+        ],
+    )
+    .unwrap();
     registry.register(Box::new(info_gauge.clone())).unwrap();
 
     let state = Arc::new(Mutex::new(AppState {
@@ -128,7 +150,10 @@ async fn main() -> std::io::Result<()> {
     let state_clone = Arc::clone(&state);
     let host_clone = apcupsd_host.clone();
 
-    debug!("Starting background task to fetch APC UPS stats every {} seconds", fetch_interval);
+    debug!(
+        "Starting background task to fetch APC UPS stats every {} seconds",
+        fetch_interval
+    );
     tokio::spawn(async move {
         let mut interval_timer = interval(Duration::from_secs(fetch_interval));
         loop {
@@ -146,7 +171,10 @@ async fn main() -> std::io::Result<()> {
             }
         }
     });
-    info!("Started background task to fetch APC UPS stats every {} seconds", fetch_interval);
+    info!(
+        "Started background task to fetch APC UPS stats every {} seconds",
+        fetch_interval
+    );
 
     let state = web::Data::new(state);
 
