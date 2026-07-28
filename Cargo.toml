@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-actix-web = { version = "4.12.1", default-features = false, features = ["compress-gzip", "macros"] }
+actix-web = { version = "4.14.0", default-features = false, features = ["compress-gzip", "macros"] }
 dashmap = "6.2.1"
-env_logger = "0.11.8"
-log = "0.4.29"
+env_logger = "0.11.11"
+log = "0.4.33"
 prometheus = { version = "0.14", features = ["process"] }
 tokio = { version = "1", default-features = false, features = ["time"] }
 
