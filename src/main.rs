@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use tokio::time::{Duration, interval};
 
 use actix_web::middleware::Compress;
-use actix_web::{App, HttpResponse, HttpServer, Result, web};
+use actix_web::{App, HttpResponse, HttpServer, Responder, Result, web};
 use log::{debug, info};
 use prometheus::{Encoder, GaugeVec, IntGaugeVec, Opts, Registry, TextEncoder};
 
@@ -25,6 +25,10 @@ pub async fn metrics_handler(state: web::Data<Arc<Mutex<AppState>>>) -> Result<H
     Ok(HttpResponse::Ok()
         .content_type("text/plain; charset=utf-8")
         .body(buffer))
+}
+
+pub async fn liveness_handler() -> impl Responder {
+    "ok"
 }
 
 fn update_metrics(state: &mut AppState) {
@@ -184,6 +188,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Compress::default())
             .app_data(state.clone())
             .service(web::resource("/metrics").route(web::get().to(metrics_handler)))
+            .service(web::resource("/livez").route(web::get().to(liveness_handler)))
     })
     .bind(("0.0.0.0", port_bind))?
     .run()
