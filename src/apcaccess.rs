@@ -48,7 +48,7 @@ impl From<std::io::Error> for ApcAccessError {
 impl std::fmt::Display for ApcAccessError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ApcAccessError::IoError(e) => write!(f, "IO Error: {}", e),
+            ApcAccessError::IoError(e) => write!(f, "IO Error: {e}"),
         }
     }
 }
@@ -67,7 +67,7 @@ impl std::error::Error for ApcAccessError {}
 ///
 /// Returns the raw status string from the apcupsd server
 pub fn get(host: &str, port: u16, timeout: u64) -> Result<String, ApcAccessError> {
-    let addr = format!("{}:{}", host, port);
+    let addr = format!("{host}:{port}");
     let mut stream = TcpStream::connect(&addr)?;
     stream.set_read_timeout(Some(Duration::from_secs(timeout)))?;
     stream.set_write_timeout(Some(Duration::from_secs(timeout)))?;
@@ -95,7 +95,7 @@ pub fn get(host: &str, port: u16, timeout: u64) -> Result<String, ApcAccessError
     Ok(String::from_utf8_lossy(&buffer).into_owned())
 }
 
-/// Split the output from get() into lines, removing the length and newline chars.
+/// Split the output from [`get`] into lines, removing the length and newline chars.
 ///
 /// # Arguments
 ///
@@ -128,7 +128,7 @@ pub fn split(raw_status: &str) -> Vec<String> {
         .collect()
 }
 
-/// Split the output from get() into lines, clean it up and return it as a BTreeMap.
+/// Split the output from [`get`] into lines, clean it up and return it as a [`BTreeMap`].
 ///
 /// # Arguments
 ///
@@ -137,7 +137,7 @@ pub fn split(raw_status: &str) -> Vec<String> {
 ///
 /// # Returns
 ///
-/// A BTreeMap containing the parsed key-value pairs
+/// A [`BTreeMap`] containing the parsed key-value pairs
 pub fn parse(raw_status: &str, strip_units: bool) -> BTreeMap<String, String> {
     let mut lines = split(raw_status);
 
@@ -189,7 +189,12 @@ pub fn strip_units_from_lines(lines: &[String]) -> Vec<String> {
 }
 
 /// Fetch and parse the APCUPSd status from the given host and port.
-pub fn fetch_stats(host: &str, port: u16, timeout: u64, strip_units: bool) -> Result<BTreeMap<String, String>, ApcAccessError> {
+pub fn fetch_stats(
+    host: &str,
+    port: u16,
+    timeout: u64,
+    strip_units: bool,
+) -> Result<BTreeMap<String, String>, ApcAccessError> {
     let raw_status = get(host, port, timeout)?;
     let parsed = parse(&raw_status, strip_units);
     Ok(parsed)
@@ -201,7 +206,8 @@ mod tests {
 
     #[test]
     fn test_split() {
-        let raw_status = "\x001APC      : 001,036,0876\n\x00\x001STATUS   : ONLINE\n\x00  \n\x00\x00";
+        let raw_status =
+            "\x001APC      : 001,036,0876\n\x00\x001STATUS   : ONLINE\n\x00  \n\x00\x00";
         let lines = split(raw_status);
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0], "APC      : 001,036,0876");
@@ -210,7 +216,8 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let raw_status = "\x001APC      : 001,036,0876\n\x00\x001STATUS   : ONLINE\n\x00  \n\x00\x00";
+        let raw_status =
+            "\x001APC      : 001,036,0876\n\x00\x001STATUS   : ONLINE\n\x00  \n\x00\x00";
         let parsed = parse(raw_status, false);
         assert_eq!(parsed.get("APC"), Some(&"001,036,0876".to_string()));
         assert_eq!(parsed.get("STATUS"), Some(&"ONLINE".to_string()));

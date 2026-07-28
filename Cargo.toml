@@ -11,6 +11,11 @@ log = "0.4.29"
 prometheus = { version = "0.14", features = ["process"] }
 tokio = { version = "1", default-features = false, features = ["time"] }
 
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+similar_names = "allow"
+missing_errors_doc = "allow"
+
 [profile.release]
 opt-level = "z"     # Optimize for size
 lto = true          # Link Time Optimization

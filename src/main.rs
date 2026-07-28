@@ -23,7 +23,7 @@ pub async fn metrics_handler(state: web::Data<Arc<Mutex<AppState>>>) -> Result<H
     let encoder = TextEncoder::new();
     let metric_families = state.registry.gather();
     let mut buffer = Vec::new();
-    encoder.encode(&metric_families, &mut buffer).unwrap();
+    encoder.encode(&metric_families, &mut buffer).ok();
 
     Ok(HttpResponse::Ok()
         .content_type("text/plain; charset=utf-8")
@@ -93,7 +93,7 @@ fn update_metrics(state: &mut AppState) {
 
             // Get or create the gauge for this metric
             let gauge = state.gauges.entry(metric_name.clone()).or_insert_with(|| {
-                let opts = Opts::new(metric_name.clone(), format!("APC UPS {}", key));
+                let opts = Opts::new(metric_name.clone(), format!("APC UPS {key}"));
                 let gauge_vec = GaugeVec::new(opts, &[]).unwrap();
                 state
                     .registry
@@ -154,10 +154,7 @@ async fn main() -> std::io::Result<()> {
     let state_clone = Arc::clone(&state);
     let host_clone = apcupsd_host.clone();
 
-    debug!(
-        "Starting background task to fetch APC UPS stats every {} seconds",
-        fetch_interval
-    );
+    debug!("Starting background task to fetch APC UPS stats every {fetch_interval} seconds");
     tokio::spawn(async move {
         let mut interval_timer = interval(Duration::from_secs(fetch_interval));
         loop {
@@ -172,7 +169,7 @@ async fn main() -> std::io::Result<()> {
                     update_metrics(&mut state_guard);
                 }
                 Err(e) => {
-                    error!("Failed to fetch APC UPS stats: {}", e);
+                    error!("Failed to fetch APC UPS stats: {e}");
                     let mut state_guard = state_clone.lock().await;
                     state_guard.stats = None;
                     update_metrics(&mut state_guard);
@@ -180,14 +177,11 @@ async fn main() -> std::io::Result<()> {
             }
         }
     });
-    info!(
-        "Started background task to fetch APC UPS stats every {} seconds",
-        fetch_interval
-    );
+    info!("Started background task to fetch APC UPS stats every {fetch_interval} seconds");
 
     let state = web::Data::new(state);
 
-    debug!("Starting HTTP server on 0.0.0.0:{}", port_bind);
+    debug!("Starting HTTP server on 0.0.0.0:{port_bind}");
     HttpServer::new(move || {
         App::new()
             .wrap(Compress::default())
