@@ -9,4 +9,5 @@ data:
   APCUPSD_PORT: {{ .Values.config.apcupsdPort | default 3551 | quote }}
   METRICS_PORT: {{ .Values.config.metricsPort | default 8080 | quote }}
   INTERVAL: {{ .Values.config.interval | default 10 | quote }}
-  TIMEOUT: {{.Values.config.timeout | default 15 | quote }}
+  TIMEOUT: {{ .Values.config.timeout | default 15 | quote }}
+  RUST_LOG: {{ .Values.config.logLevel | default "info" | quote }}
