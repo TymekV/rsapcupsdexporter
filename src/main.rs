@@ -31,6 +31,15 @@ pub async fn liveness_handler() -> impl Responder {
     "ok"
 }
 
+pub async fn readiness_handler(state: web::Data<Arc<Mutex<AppState>>>) -> impl Responder {
+    let state = state.lock().unwrap();
+
+    match state.stats {
+        Some(_) => HttpResponse::Ok().body("ok"),
+        None => HttpResponse::ServiceUnavailable().body("UPS connection error"),
+    }
+}
+
 fn update_metrics(state: &mut AppState) {
     // Update info gauge with labels
     state.info_gauge.reset();
@@ -184,6 +193,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(state.clone())
             .service(web::resource("/metrics").route(web::get().to(metrics_handler)))
             .service(web::resource("/livez").route(web::get().to(liveness_handler)))
+            .service(web::resource("/readyz").route(web::get().to(readiness_handler)))
     })
     .bind(("0.0.0.0", port_bind))?
     .run()
