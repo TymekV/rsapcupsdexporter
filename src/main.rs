@@ -1,22 +1,25 @@
 mod apcaccess;
 
-use std::sync::{Arc, Mutex};
-use tokio::time::{Duration, interval};
+use dashmap::DashMap;
+use std::sync::Arc;
+use tokio::{
+    sync::Mutex,
+    time::{Duration, interval},
+};
 
-use actix_web::middleware::Compress;
-use actix_web::{App, HttpResponse, HttpServer, Responder, Result, web};
+use actix_web::{App, HttpResponse, HttpServer, Responder, Result, middleware::Compress, web};
 use log::{debug, error, info, trace, warn};
 use prometheus::{Encoder, GaugeVec, IntGaugeVec, Opts, Registry, TextEncoder};
 
 pub struct AppState {
     pub registry: Registry,
     pub info_gauge: IntGaugeVec,
-    pub gauges: Arc<Mutex<std::collections::HashMap<String, GaugeVec>>>,
+    pub gauges: Arc<DashMap<String, GaugeVec>>,
     pub stats: Option<std::collections::BTreeMap<String, String>>,
 }
 
 pub async fn metrics_handler(state: web::Data<Arc<Mutex<AppState>>>) -> Result<HttpResponse> {
-    let state = state.lock().unwrap();
+    let state = state.lock().await;
     let encoder = TextEncoder::new();
     let metric_families = state.registry.gather();
     let mut buffer = Vec::new();
@@ -32,7 +35,7 @@ pub async fn liveness_handler() -> impl Responder {
 }
 
 pub async fn readiness_handler(state: web::Data<Arc<Mutex<AppState>>>) -> impl Responder {
-    let state = state.lock().unwrap();
+    let state = state.lock().await;
 
     match state.stats {
         Some(_) => HttpResponse::Ok().body("ok"),
@@ -66,8 +69,6 @@ fn update_metrics(state: &mut AppState) {
         .set(1);
 
     // Update numeric metrics as gauges
-    let mut gauges = state.gauges.lock().unwrap();
-
     for (key, value) in stats {
         // Skip the tag keys that are already in the info metric
         if matches!(
@@ -91,7 +92,7 @@ fn update_metrics(state: &mut AppState) {
             let metric_name = format!("apcupsd_{}", key.to_lowercase());
 
             // Get or create the gauge for this metric
-            let gauge = gauges.entry(metric_name.clone()).or_insert_with(|| {
+            let gauge = state.gauges.entry(metric_name.clone()).or_insert_with(|| {
                 let opts = Opts::new(metric_name.clone(), format!("APC UPS {}", key));
                 let gauge_vec = GaugeVec::new(opts, &[]).unwrap();
                 state
@@ -145,7 +146,7 @@ async fn main() -> std::io::Result<()> {
     let state = Arc::new(Mutex::new(AppState {
         registry,
         info_gauge,
-        gauges: Arc::new(Mutex::new(std::collections::HashMap::new())),
+        gauges: Arc::new(DashMap::new()),
         stats: None,
     }));
 
@@ -166,13 +167,13 @@ async fn main() -> std::io::Result<()> {
             match apcaccess::fetch_stats(&host_clone, apcupsd_port, timeout, true) {
                 Ok(new_stats) => {
                     trace!("Stats fetched successfully");
-                    let mut state_guard = state_clone.lock().unwrap();
+                    let mut state_guard = state_clone.lock().await;
                     state_guard.stats = Some(new_stats);
                     update_metrics(&mut state_guard);
                 }
                 Err(e) => {
                     error!("Failed to fetch APC UPS stats: {}", e);
-                    let mut state_guard = state_clone.lock().unwrap();
+                    let mut state_guard = state_clone.lock().await;
                     state_guard.stats = None;
                     update_metrics(&mut state_guard);
                 }
