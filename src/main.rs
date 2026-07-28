@@ -5,14 +5,14 @@ use tokio::time::{Duration, interval};
 
 use actix_web::middleware::Compress;
 use actix_web::{App, HttpResponse, HttpServer, Responder, Result, web};
-use log::{debug, info};
+use log::{debug, error, info, trace, warn};
 use prometheus::{Encoder, GaugeVec, IntGaugeVec, Opts, Registry, TextEncoder};
 
 pub struct AppState {
     pub registry: Registry,
     pub info_gauge: IntGaugeVec,
     pub gauges: Arc<Mutex<std::collections::HashMap<String, GaugeVec>>>,
-    pub stats: std::collections::BTreeMap<String, String>,
+    pub stats: Option<std::collections::BTreeMap<String, String>>,
 }
 
 pub async fn metrics_handler(state: web::Data<Arc<Mutex<AppState>>>) -> Result<HttpResponse> {
@@ -34,26 +34,32 @@ pub async fn liveness_handler() -> impl Responder {
 fn update_metrics(state: &mut AppState) {
     // Update info gauge with labels
     state.info_gauge.reset();
+
+    let Some(stats) = &state.stats else {
+        warn!("No metrics found, skipping update");
+        return;
+    };
+
     state
         .info_gauge
         .with_label_values(&[
-            &state.stats.get("APC").cloned().unwrap_or_default(),
-            &state.stats.get("HOSTNAME").cloned().unwrap_or_default(),
-            &state.stats.get("UPSNAME").cloned().unwrap_or_default(),
-            &state.stats.get("VERSION").cloned().unwrap_or_default(),
-            &state.stats.get("CABLE").cloned().unwrap_or_default(),
-            &state.stats.get("MODEL").cloned().unwrap_or_default(),
-            &state.stats.get("UPSMODE").cloned().unwrap_or_default(),
-            &state.stats.get("DRIVER").cloned().unwrap_or_default(),
-            &state.stats.get("APCMODEL").cloned().unwrap_or_default(),
-            &state.stats.get("STATUS").cloned().unwrap_or_default(),
+            &stats.get("APC").cloned().unwrap_or_default(),
+            &stats.get("HOSTNAME").cloned().unwrap_or_default(),
+            &stats.get("UPSNAME").cloned().unwrap_or_default(),
+            &stats.get("VERSION").cloned().unwrap_or_default(),
+            &stats.get("CABLE").cloned().unwrap_or_default(),
+            &stats.get("MODEL").cloned().unwrap_or_default(),
+            &stats.get("UPSMODE").cloned().unwrap_or_default(),
+            &stats.get("DRIVER").cloned().unwrap_or_default(),
+            &stats.get("APCMODEL").cloned().unwrap_or_default(),
+            &stats.get("STATUS").cloned().unwrap_or_default(),
         ])
         .set(1);
 
     // Update numeric metrics as gauges
     let mut gauges = state.gauges.lock().unwrap();
 
-    for (key, value) in &state.stats {
+    for (key, value) in stats {
         // Skip the tag keys that are already in the info metric
         if matches!(
             key.as_str(),
@@ -112,16 +118,6 @@ async fn main() -> std::io::Result<()> {
         .parse()
         .unwrap_or(15);
 
-    // Initial fetch
-    debug!(
-        "Fetching initial APC UPS stats from {}:{}",
-        apcupsd_host, apcupsd_port
-    );
-    let stats = apcaccess::fetch_stats(&apcupsd_host, apcupsd_port, timeout, true)
-        .expect("Failed to fetch initial APC UPS stats");
-    debug!("Fetched stats: {:?}", stats);
-    info!("Successfully fetched initial APC UPS stats");
-
     // Create registry and metrics
     let registry = Registry::new();
 
@@ -141,14 +137,8 @@ async fn main() -> std::io::Result<()> {
         registry,
         info_gauge,
         gauges: Arc::new(Mutex::new(std::collections::HashMap::new())),
-        stats: stats.clone(),
+        stats: None,
     }));
-
-    // Initialize metrics
-    {
-        let mut state_guard = state.lock().unwrap();
-        update_metrics(&mut state_guard);
-    }
 
     // Spawn background task to fetch stats periodically
     let state_clone = Arc::clone(&state);
@@ -162,15 +152,20 @@ async fn main() -> std::io::Result<()> {
         let mut interval_timer = interval(Duration::from_secs(fetch_interval));
         loop {
             interval_timer.tick().await;
+            trace!("Attempting to fetch ATC UPS stats");
 
             match apcaccess::fetch_stats(&host_clone, apcupsd_port, timeout, true) {
                 Ok(new_stats) => {
+                    trace!("Stats fetched successfully");
                     let mut state_guard = state_clone.lock().unwrap();
-                    state_guard.stats = new_stats;
+                    state_guard.stats = Some(new_stats);
                     update_metrics(&mut state_guard);
                 }
                 Err(e) => {
-                    eprintln!("Failed to fetch APC UPS stats: {}", e);
+                    error!("Failed to fetch APC UPS stats: {}", e);
+                    let mut state_guard = state_clone.lock().unwrap();
+                    state_guard.stats = None;
+                    update_metrics(&mut state_guard);
                 }
             }
         }
