@@ -44,7 +44,7 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - name: health
+            - name: metrics
               containerPort: {{ .Values.config.metricsPort }}
               protocol: TCP
           envFrom:
